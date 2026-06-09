@@ -75,5 +75,3 @@ EOF
 ```bash
 sudo modprobe -r kvm_intel kvm_amd kvm
 ```
-
-> The K3s nodes use the `centos/stream9` box (Vagrant downloads it automatically). Reboot after this, then `cd p1 && make build`.
