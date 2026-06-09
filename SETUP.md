@@ -1,11 +1,20 @@
 ### Setup debian vm via oracle
 
+In the VM's Settings -> System -> Processor, enable **Nested VT-x/AMD-V** (the K3s nodes run nested inside this VM).
+
 ### Install guest additions:
 
 Devices -> Inset guest additions cd image
 Navigate through cd image then install it
 
 ### Add shared folder, make it auto mount + make permanent
+
+```bash
+sudo adduser $USER vboxsf
+```
+```bash
+newgrp vboxsf
+```
 
 ### Install Vagrant:
 
@@ -39,20 +48,32 @@ sudo mv ./kubectl /usr/local/bin/kubectl
 sudo apt update
 ```
 ```bash
-sudo apt install -y git make build-essential dkms linux-headers-$(uname -r) pkg-config
+sudo apt install -y git make build-essential dkms linux-headers-$(uname -r)
+```
+```bash
+curl -fsSL https://www.virtualbox.org/download/oracle_vbox_2016.asc | sudo gpg --dearmor -o /usr/share/keyrings/oracle-vbox-2016.gpg
+```
+```bash
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/oracle-vbox-2016.gpg] https://download.virtualbox.org/virtualbox/debian trixie contrib" | sudo tee /etc/apt/sources.list.d/virtualbox.list
+```
+```bash
+sudo apt update
+```
+```bash
+sudo apt install -y virtualbox-7.2
 ```
 
-### Install libvirt provider:
+### Disable KVM (free VT-x for VirtualBox):
 
 ```bash
-sudo apt install -y qemu-system-x86 libvirt-daemon-system libvirt-clients virtinst dnsmasq libvirt-dev
+sudo tee /etc/modprobe.d/disable-kvm.conf <<EOF
+blacklist kvm
+blacklist kvm_intel
+blacklist kvm_amd
+EOF
 ```
 ```bash
-sudo systemctl enable --now libvirtd
+sudo modprobe -r kvm_intel kvm_amd kvm
 ```
-```bash
-sudo usermod -aG libvirt,kvm $USER
-```
-```bash
-vagrant plugin install vagrant-libvirt
-```
+
+> The K3s nodes use the `centos/stream9` box (Vagrant downloads it automatically). Reboot after this, then `cd p1 && make build`.
