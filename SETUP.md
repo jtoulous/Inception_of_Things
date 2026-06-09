@@ -39,17 +39,20 @@ sudo mv ./kubectl /usr/local/bin/kubectl
 sudo apt update
 ```
 ```bash
-sudo apt install -y git make build-essential dkms linux-headers-$(uname -r)
+sudo apt install -y git make build-essential dkms linux-headers-$(uname -r) pkg-config
+```
+
+### Install libvirt provider:
+
+```bash
+sudo apt install -y qemu-system-x86 libvirt-daemon-system libvirt-clients virtinst dnsmasq libvirt-dev
 ```
 ```bash
-curl -fsSL https://www.virtualbox.org/download/oracle_vbox_2016.asc | sudo gpg --dearmor -o /usr/share/keyrings/oracle-vbox-2016.gpg
+sudo systemctl enable --now libvirtd
 ```
 ```bash
-echo "deb [arch=amd64 signed-by=/usr/share/keyrings/oracle-vbox-2016.gpg] https://download.virtualbox.org/virtualbox/debian trixie contrib" | sudo tee /etc/apt/sources.list.d/virtualbox.list
+sudo usermod -aG libvirt,kvm $USER
 ```
 ```bash
-sudo apt update
-```
-```bash
-sudo apt install -y virtualbox-7.2
+vagrant plugin install vagrant-libvirt
 ```
