@@ -1,0 +1,44 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+CONTROL_IP   = "192.168.56.110"
+WORKER_IP    = "192.168.56.111"
+CONTROL_HOST = "rsterinS"
+WORKER_HOST  = "rsterinSW"
+K3S_TOKEN    = "IvZm4q4OEhd78ObdZS8LJEfqsemGu77KASPg6tWU9E4iab9CCOVuKuZ2ya8PthyA"
+
+# Provider is libvirt/KVM, NOT VirtualBox. This project runs inside the `iot`
+# VM, and VirtualBox-in-VirtualBox proved unstable: nodes crashed (E1000
+# emulation), guru-meditated at boot, or froze within minutes of k3s load.
+# One-time host prep: ../setup.sh (see SETUP.md)
+Vagrant.configure("2") do |config|
+    config.vm.box = "generic/rocky9"
+    config.vm.box_check_update = false
+    config.vm.boot_timeout = 600
+
+    # Not needed (the join token is passed via the Vagrantfile), and it avoids
+    # re-sharing the vboxsf project dir onward into the VMs.
+    config.vm.synced_folder ".", "/vagrant", disabled: true
+
+    config.vm.provider "libvirt" do |lv|
+        lv.driver         = "kvm"
+        lv.cpu_mode       = "host-passthrough"  # nested: expose iot's vCPU as-is
+        lv.cpus           = 1
+        lv.memory         = 1536
+        lv.default_prefix = ""                  # libvirt domains named rsterinS / rsterinSW
+    end
+
+    # Server (K3s controller)
+    config.vm.define CONTROL_HOST do |control|
+        control.vm.hostname = CONTROL_HOST
+        control.vm.network "private_network", ip: CONTROL_IP
+        control.vm.provision "shell", path: "scripts/server.sh", args: [CONTROL_IP, K3S_TOKEN]
+    end
+
+    # ServerWorker (K3s agent)
+    config.vm.define WORKER_HOST do |worker|
+        worker.vm.hostname = WORKER_HOST
+        worker.vm.network "private_network", ip: WORKER_IP
+        worker.vm.provision "shell", path: "scripts/worker.sh", args: [CONTROL_IP, WORKER_IP, K3S_TOKEN]
+    end
+end
