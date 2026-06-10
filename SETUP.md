@@ -1,13 +1,25 @@
-### Setup debian vm via oracle
+# Setting up the `iot` VM (fresh install)
 
-In the VM's Settings -> System -> Processor, enable **Nested VT-x/AMD-V** (the K3s nodes run nested inside this VM).
+The whole project runs inside a Debian 13 (Trixie) VirtualBox VM; the K3s
+nodes are nested VMs inside it, managed by Vagrant with the **libvirt/KVM**
+provider. (Nested VirtualBox-in-VirtualBox was tried first and proved
+unstable: E1000 emulation crashes, guru meditations at boot, and guest
+freezes within minutes of k3s load. KVM handles nesting natively.)
 
-### Install guest additions:
+### Create the Debian VM in VirtualBox (on the host)
 
-Devices -> Inset guest additions cd image
-Navigate through cd image then install it
+- Debian 13 (Trixie), ≥ 6 GB RAM, ≥ 8 vCPUs recommended.
+- Settings -> System -> Processor: enable **Nested VT-x/AMD-V**
+  (the K3s nodes run nested inside this VM — without it nothing works).
 
-### Add shared folder, make it auto mount + make permanent
+### Install guest additions
+
+Devices -> Insert Guest Additions CD image,
+navigate into the mounted CD, then run the installer.
+
+### Add a shared folder (auto-mount + permanent)
+
+Share the project directory from the host, then inside the VM:
 
 ```bash
 sudo adduser $USER vboxsf
@@ -16,62 +28,35 @@ sudo adduser $USER vboxsf
 newgrp vboxsf
 ```
 
-### Install Vagrant:
+The project appears under `/media/sf_<share-name>`.
+
+### Install everything else (Vagrant, KVM/libvirt, kubectl)
+
+From the repo root, inside the VM:
 
 ```bash
-wget -O - https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+./setup.sh
 ```
 ```bash
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(grep -oP '(?<=UBUNTU_CODENAME=).*' /etc/os-release || lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
-```
-```bash
-sudo apt update && sudo apt install vagrant
-```
-### Install kubectl:
-
-```bash
-sudo apt install curl
-```
-```bash
-curl -LO https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl
-```
-```bash
-chmod +x ./kubectl
-```
-```bash
-sudo mv ./kubectl /usr/local/bin/kubectl
+sudo reboot   # applies the libvirt/kvm group membership
 ```
 
-### Install requirements:
+The script installs base build tools, HashiCorp Vagrant (Debian's own is too
+old), qemu/libvirt + the `vagrant-libvirt` plugin, and kubectl. It is
+idempotent — safe to re-run if a step fails.
+
+### Build the cluster
 
 ```bash
-sudo apt update
+cd /media/sf_<share-name>/p1
 ```
 ```bash
-sudo apt install -y git make build-essential dkms linux-headers-$(uname -r)
+make build    # boots + provisions both nodes
 ```
 ```bash
-curl -fsSL https://www.virtualbox.org/download/oracle_vbox_2016.asc | sudo gpg --dearmor -o /usr/share/keyrings/oracle-vbox-2016.gpg
-```
-```bash
-echo "deb [arch=amd64 signed-by=/usr/share/keyrings/oracle-vbox-2016.gpg] https://download.virtualbox.org/virtualbox/debian trixie contrib" | sudo tee /etc/apt/sources.list.d/virtualbox.list
-```
-```bash
-sudo apt update
-```
-```bash
-sudo apt install -y virtualbox-7.2
+make status   # kubectl get nodes from the server - expect both nodes Ready
 ```
 
-### Disable KVM (free VT-x for VirtualBox):
-
-```bash
-sudo tee /etc/modprobe.d/disable-kvm.conf <<EOF
-blacklist kvm
-blacklist kvm_intel
-blacklist kvm_amd
-EOF
-```
-```bash
-sudo modprobe -r kvm_intel kvm_amd kvm
-```
+`make connect` opens a shell on the server node. If something misbehaves,
+`bash scripts/diag.sh` (inside the VM) collects VM states and hypervisor
+logs into `p1/` where they can be inspected from the host.
