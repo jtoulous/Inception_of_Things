@@ -1,24 +1,61 @@
-k3d cluster create mycluster
-kubectl create namespace argocd
-kubectl create namespace dev
+#!/bin/bash
+set -euo pipefail
 
-kubectl apply --server-side -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-kubectl wait --for=condition=available --timeout=420s deployment/argocd-server -n argocd
+CLUSTER="mycluster"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+CONFS="$HERE/../confs"
+SELF="$HERE/$(basename "$0")"
 
-kubectl apply -f ../confs/application.yaml
+if ! docker info >/dev/null 2>&1; then
+    command -v docker >/dev/null \
+        || { echo "ERROR: docker is not installed - run ./install.sh first" >&2; exit 1; }
+    getent group docker >/dev/null \
+        || { echo "ERROR: no docker group - run ./install.sh first" >&2; exit 1; }
+    [ -z "${P3_SG:-}" ] \
+        || { echo "ERROR: still no access to the Docker socket - is dockerd running?" >&2; exit 1; }
+    export P3_SG=1
+    exec sg docker -c "$SELF"
+fi
 
-until sudo kubectl get deployment wil-playground -n dev 2>/dev/null | grep -q "wil-playground"; do
-    echo "Waiting for deployment..."
+echo ">>> Creating the k3d cluster..."
+k3d cluster get "$CLUSTER" >/dev/null 2>&1 || k3d cluster create "$CLUSTER"
+
+echo ">>> Creating the namespaces..."
+for ns in argocd dev; do
+    kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
+done
+
+echo ">>> Installing Argo CD..."
+kubectl apply --server-side -n argocd \
+    -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl wait --for=condition=available --timeout=600s deployment/argocd-server -n argocd
+
+echo ">>> Declaring the application..."
+kubectl apply -f "$CONFS/application.yaml"
+
+# Argo CD creates the deployment itself, so it does not exist yet: retry until
+# it shows up, then wait for it to come up (bounded, ~5min total).
+echo ">>> Waiting for Argo CD to deploy the application..."
+for _ in $(seq 1 60); do
+    kubectl wait --for=condition=available --timeout=5s \
+        deployment/wil-playground -n dev 2>/dev/null && break
     sleep 5
 done
-kubectl wait --for=condition=available --timeout=420s deployment/wil-playground -n dev
 
-kubectl port-forward svc/wil-playground 8888:8888 -n dev &
-kubectl port-forward svc/argocd-server 8080:443 -n argocd &
+echo ">>> Opening the port-forwards..."
+pkill -f "[k]ubectl port-forward svc/wil-playground" 2>/dev/null || true
+pkill -f "[k]ubectl port-forward svc/argocd-server"  2>/dev/null || true
+nohup kubectl port-forward svc/wil-playground -n dev     8888:8888 >/tmp/pf-app.log    2>&1 &
+nohup kubectl port-forward svc/argocd-server  -n argocd  8080:443  >/tmp/pf-argocd.log 2>&1 &
+disown -a
 
-echo ""
-echo "=== ARGO CD LOGIN ==="
-echo "login: admin"
-echo -n "password: "
+echo
+echo "=== ARGO CD ==="
+echo "  https://localhost:8080   (self-signed certificate, accept the warning)"
+echo "  login:    admin"
+echo -n "  password: "
 kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}" | base64 -d
-echo ""
+echo
+echo
+echo "=== APPLICATION ==="
+echo "  curl http://localhost:8888/"
