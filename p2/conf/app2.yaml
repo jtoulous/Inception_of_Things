@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app2
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: app2
+  template:
+    metadata:
+      labels:
+        app: app2
+    spec:
+      containers:
+      - name: app2
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        env:
+        # Exposed so the page can name the pod that answered
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          echo "<h1>app2</h1><p>served by $POD_NAME</p>" > /usr/share/nginx/html/index.html
+          exec nginx -g "daemon off;"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app2
+spec:
+  selector:
+    app: app2
+  ports:
+  - port: 80
+    targetPort: 80
