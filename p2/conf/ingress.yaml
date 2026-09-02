@@ -25,7 +25,6 @@ spec:
             name: app2
             port:
               number: 80
-  # No host: catches every other Host header, so app3 is the default
   - http:
       paths:
       - path: /

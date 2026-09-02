@@ -18,7 +18,6 @@ spec:
         ports:
         - containerPort: 80
         env:
-        # Exposed so the page can name the pod that answered
         - name: POD_NAME
           valueFrom:
             fieldRef:

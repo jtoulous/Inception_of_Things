@@ -20,5 +20,4 @@ curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server \
     --disable=metrics-server" sh -
 
 # Make kubectl usable for the vagrant user
-grep -q KUBECONFIG /home/vagrant/.bashrc \
-    || echo "export KUBECONFIG=/etc/rancher/k3s/k3s.yaml" >> /home/vagrant/.bashrc
+grep -q KUBECONFIG /home/vagrant/.bashrc || echo "export KUBECONFIG=/etc/rancher/k3s/k3s.yaml" >> /home/vagrant/.bashrc
