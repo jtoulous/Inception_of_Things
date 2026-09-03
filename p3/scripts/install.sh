@@ -4,7 +4,6 @@ set -euo pipefail
 SUDO=""; [ "$(id -u)" -eq 0 ] || SUDO="sudo"
 USER_NAME="${SUDO_USER:-$(id -un)}"
 
-# Debian runs apt jobs of its own after boot; wait them out instead of failing
 APT="-o DPkg::Lock::Timeout=300"
 
 if ! command -v docker >/dev/null; then
@@ -23,7 +22,6 @@ else
     echo ">>> Docker already installed"
 fi
 
-# k3d drives the Docker socket; without this every k3d call would need sudo
 $SUDO usermod -aG docker "$USER_NAME"
 
 if ! command -v k3d >/dev/null; then
