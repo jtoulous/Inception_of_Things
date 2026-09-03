@@ -9,6 +9,7 @@ SELF="$HERE/$(basename "$0")"
 if ! docker info >/dev/null 2>&1; then
     command -v docker >/dev/null || { echo "ERROR: docker is not installed - run ./install.sh first" >&2; exit 1; }
     getent group docker >/dev/null || { echo "ERROR: no docker group - run ./install.sh first" >&2; exit 1; }
+    # relaunch session in the docker group if not already done
     [ -z "${P3_SG:-}" ] || { echo "ERROR: still no access to the Docker socket - is dockerd running?" >&2; exit 1; }
     export P3_SG=1
     exec sg docker -c "$SELF"
